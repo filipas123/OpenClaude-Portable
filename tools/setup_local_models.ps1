@@ -16,10 +16,14 @@ $ModelCatalog = @(
     @{ Num=4; Category="Qwen 3.5 & Ministral 3 (Daily Drivers)"; Name="Qwen 3.5 (9B)"; Tag="qwen3.5:9b"; Size="6.6"; Input="Text, Image"; Label="STANDARD"; Badge="RECOMMENDED" },
     @{ Num=5; Category="Qwen 3.5 & Ministral 3 (Daily Drivers)"; Name="Ministral 3 (8B)"; Tag="ministral-3:8b"; Size="6.0"; Input="Text, Image"; Label="STANDARD"; Badge="DAILY" },
 
-    # Category 3: High-VRAM GPU Tier (RTX 5090 / 16 GB+ VRAM)
-    @{ Num=6; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="Qwen2.5-Coder (32B Q4)"; Tag="qwen2.5-coder:32b"; Size="19"; Input="Code"; Label="GPU"; Badge="BEST CODE" },
-    @{ Num=7; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="DeepSeek-R1 (32B Q4)"; Tag="deepseek-r1:32b"; Size="19"; Input="Reasoning"; Label="GPU"; Badge="DEEP REASON" },
-    @{ Num=8; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="Qwen2.5 (32B Q4)"; Tag="qwen2.5:32b"; Size="19"; Input="Text"; Label="GPU"; Badge="MOST CAPABLE" }
+    # Category 3: Qwen3 Family
+    @{ Num=6; Category="Qwen3 Family (Latest Generation)"; Name="Qwen3 (8B)"; Tag="qwen3:8b"; Size="5.2"; Input="Text"; Label="STANDARD"; Badge="FAST" },
+    @{ Num=7; Category="Qwen3 Family (Latest Generation)"; Name="Qwen3 (14B)"; Tag="qwen3:14b"; Size="9.3"; Input="Text"; Label="GPU"; Badge="HIGH QUALITY" },
+
+    # Category 4: High-VRAM GPU Tier (RTX / 16 GB+ VRAM)
+    @{ Num=8; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="Qwen2.5-Coder (32B Q4)"; Tag="qwen2.5-coder:32b"; Size="19"; Input="Code"; Label="GPU"; Badge="BEST CODE" },
+    @{ Num=9; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="DeepSeek-R1 (32B Q4)"; Tag="deepseek-r1:32b"; Size="19"; Input="Reasoning"; Label="GPU"; Badge="DEEP REASON" },
+    @{ Num=10; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="Qwen2.5 (32B Q4)"; Tag="qwen2.5:32b"; Size="19"; Input="Text"; Label="GPU"; Badge="MOST CAPABLE" }
 )
 
 function Get-USBFreeSpaceGB {
@@ -70,11 +74,11 @@ foreach ($m in $ModelCatalog) {
 
 # --- Detect Already Downloaded Models (not in preset list) ---
 $ManifestDir = "$OllamaDir\data\manifests\registry.ollama.ai\library"
-$DlStartNum = 6
+$DlStartNum = 11
 $DlCount = 0
 
 if (Test-Path $ManifestDir) {
-    $PresetSkipRegex = 'gemma-4-e2b-it-q4_k_m-local|gemma-4-e2b-it-q6_k-local|gemma-4-e4b-it-q4_k_m-local|qwen3.5|ministral-3'
+    $PresetSkipRegex = 'gemma-4-e2b-it-q4_k_m-local|gemma-4-e2b-it-q6_k-local|gemma-4-e4b-it-q4_k_m-local|qwen3.5|ministral-3|qwen3|qwen2.5-coder|deepseek-r1|qwen2.5'
     $ModelDirs = Get-ChildItem -Path $ManifestDir -Directory -ErrorAction SilentlyContinue
     
     foreach ($dir in $ModelDirs) {

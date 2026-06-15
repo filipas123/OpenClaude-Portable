@@ -148,10 +148,11 @@ setup_provider() {
     echo -e "  ${CYAN}4)${RESET} ${BOLD}Claude${RESET}       ${DIM}- Anthropic API${RESET}"
     echo -e "  ${CYAN}5)${RESET} ${BOLD}OpenAI${RESET}       ${DIM}- GPT / Codex API${RESET}"
     echo -e "  ${CYAN}6)${RESET} ${BOLD}Ollama${RESET}       ${DIM}- Local Offline AI (No internet)${RESET}"
+    echo -e "  ${CYAN}7)${RESET} ${BOLD}LM Studio${RESET}    ${DIM}- LM Link Local Server (localhost:1234)${RESET}"
     echo ""
 
     while true; do
-        read -p "  Select your provider (1-6): " PROVIDER_SEL
+        read -p "  Select your provider (1-7): " PROVIDER_SEL
         case "$PROVIDER_SEL" in
             1) setup_openrouter; return ;;
             2) setup_nvidia; return ;;
@@ -159,7 +160,8 @@ setup_provider() {
             4) setup_claude; return ;;
             5) setup_openai; return ;;
             6) setup_ollama; return ;;
-            *) echo -e "  ${RED}[ERROR] Invalid selection. Please choose 1-6.${RESET}" ;;
+            7) setup_lmstudio; return ;;
+            *) echo -e "  ${RED}[ERROR] Invalid selection. Please choose 1-7.${RESET}" ;;
         esac
     done
 }
@@ -370,6 +372,21 @@ OPENAI_MODEL=${USER_MODEL}
 AI_DISPLAY_MODEL=${USER_MODEL}"
 }
 
+setup_lmstudio() {
+    echo ""
+    echo -e "  ${CYAN}--- LM STUDIO / LM LINK SETUP ---${RESET}"
+    echo -e "  ${DIM}Make sure LM Studio is running with the LM Link server enabled.${RESET}"
+    echo ""
+    read -p "  Enter loaded model name (Enter for local-model): " USER_MODEL
+    [ -z "$USER_MODEL" ] && USER_MODEL="local-model"
+    save_env "AI_PROVIDER=lmstudio
+CLAUDE_CODE_USE_OPENAI=1
+OPENAI_API_KEY=lm-studio
+OPENAI_BASE_URL=http://localhost:1234/v1
+OPENAI_MODEL=${USER_MODEL}
+AI_DISPLAY_MODEL=${USER_MODEL}"
+}
+
 setup_openai() {
     echo ""
     echo -e "  ${CYAN}--- OPENAI / CODEX SETUP ---${RESET}"
@@ -475,10 +492,12 @@ case "$AI_PROVIDER" in
         elif [[ "$OPENAI_BASE_URL" == *"integrate.api.nvidia.com"* ]]; then PROVIDER_NAME="NVIDIA NIM"
         elif [[ "$OPENAI_BASE_URL" == *"api.openai.com"* ]]; then PROVIDER_NAME="OpenAI"
         elif [[ "$OPENAI_BASE_URL" == *"localhost:11434"* ]]; then PROVIDER_NAME="Ollama"
+        elif [[ "$OPENAI_BASE_URL" == *"localhost:1234"* ]]; then PROVIDER_NAME="LM Studio (LM Link)"
         fi ;;
     gemini)     PROVIDER_NAME="Google Gemini" ;;
     anthropic)  PROVIDER_NAME="Anthropic Claude" ;;
     ollama)     PROVIDER_NAME="Ollama (Local)" ;;
+    lmstudio)   PROVIDER_NAME="LM Studio (LM Link)" ;;
 esac
 
 echo -e "${CYAN}=========================================================${RESET}"
@@ -590,7 +609,6 @@ if [ "$AI_PROVIDER" = "ollama" ]; then
         echo -e "  ${CYAN}[~] Starting Local Ollama Server...${RESET}"
         export OLLAMA_MODELS="$DATA_DIR/ollama/data"
         export OLLAMA_NUM_GPU=999
-        export CUDA_VISIBLE_DEVICES=0
         "$OLLAMA_BIN" serve >/dev/null 2>&1 &
         OLLAMA_PID=$!
         sleep 3

@@ -73,6 +73,12 @@ EOF
                 echo "CLAUDE_CODE_SIMPLE=1" >> "$ENV_FILE"
             fi
             ;;
+        lmstudio)
+            echo "CLAUDE_CODE_USE_OPENAI=$CLAUDE_CODE_USE_OPENAI" >> "$ENV_FILE"
+            echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> "$ENV_FILE"
+            echo "OPENAI_BASE_URL=$OPENAI_BASE_URL" >> "$ENV_FILE"
+            echo "OPENAI_MODEL=$OPENAI_MODEL" >> "$ENV_FILE"
+            ;;
         gemini)
             echo "CLAUDE_CODE_USE_GEMINI=1" >> "$ENV_FILE"
             echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> "$ENV_FILE"
@@ -137,6 +143,7 @@ PROVIDER_TYPE="$AI_PROVIDER"
 if [ "$AI_PROVIDER" = "openai" ]; then
     if [[ "$OPENAI_BASE_URL" == *"openrouter"* ]]; then PROVIDER_TYPE="openrouter"
     elif [[ "$OPENAI_BASE_URL" == *"integrate.api.nvidia.com"* ]]; then PROVIDER_TYPE="nvidia"
+    elif [[ "$OPENAI_BASE_URL" == *"localhost:1234"* ]]; then PROVIDER_TYPE="lmstudio"
     fi
 fi
 
@@ -230,7 +237,7 @@ case "$OPTION" in
                 fi
                 [ -n "$NEW_MODEL" ] && GEMINI_MODEL="$NEW_MODEL" && AI_DISPLAY_MODEL="$NEW_MODEL"
                 ;;
-            anthropic|openai|ollama)
+            anthropic|openai|ollama|lmstudio)
                 read -p "  Enter new model string (Current: $AI_DISPLAY_MODEL): " NEW_MODEL
                 if [ -n "$NEW_MODEL" ]; then
                     AI_DISPLAY_MODEL="$NEW_MODEL"
@@ -257,7 +264,7 @@ case "$OPTION" in
             fi
         fi
         case "$AI_PROVIDER" in
-            openai|ollama|nvidia) OPENAI_API_KEY="$NEW_KEY" ;;
+            openai|ollama|nvidia|lmstudio) OPENAI_API_KEY="$NEW_KEY" ;;
             gemini)               GEMINI_API_KEY="$NEW_KEY" ;;
             anthropic)            ANTHROPIC_API_KEY="$NEW_KEY" ;;
         esac

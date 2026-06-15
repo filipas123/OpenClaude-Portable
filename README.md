@@ -25,12 +25,13 @@ Everything runs strictly inside the project folder. No files are written to the 
 
 | Feature | Details |
 |---|---|
-| **6 AI Providers** | NVIDIA NIM · OpenRouter · Google Gemini · Anthropic Claude · OpenAI · Ollama (offline) |
+| **7 AI Providers** | NVIDIA NIM · OpenRouter · Google Gemini · Anthropic Claude · OpenAI · Ollama (offline) · LM Studio (LM Link) |
 | **Zero Footprint** | All data, keys, and logs stay inside `data/` — nothing touches the host system |
 | **Cyber Analyst Mode** | Dedicated security-analyst persona with offline forensics tools (DFIR, malware triage, IoC sweep, entropy analysis) |
 | **Air-Gap / Offline First** | After first setup, the drive never phones home on launch — safe to plug into untrusted machines |
-| **Local Speed Proxy** | Trims system prompts for CPU inference; auto-disabled on high-VRAM GPUs (RTX 5090 / 16 GB+ VRAM) |
-| **GPU-Accelerated Local AI** | Ollama launched with `OLLAMA_NUM_GPU=999` to fully offload to NVIDIA GPU; supports 32B-class models on 24 GB VRAM |
+| **Local Speed Proxy** | Trims system prompts for CPU inference; auto-disabled on high-VRAM GPUs (total VRAM ≥ 16 GB across all GPUs) |
+| **GPU-Accelerated Local AI** | Ollama launched with `OLLAMA_NUM_GPU=999` and full CUDA enabled — all available GPUs share the load; supports 32B-class models on 24 GB VRAM |
+| **LM Studio / LM Link** | Connects directly to LM Studio's LM Link local server (`localhost:1234`) — no proxy needed, full GPU acceleration |
 | **Auto-Update Cache** | Checks for engine updates once per day (skipped entirely after `OFFLINE_READY` flag is written) |
 | **Session Resume** | Resume any interrupted session with `RESUME.bat <session-id>` |
 | **Web Dashboard** | ChatGPT-style browser UI with agent mode, tool cards, and thinking visualisation |
@@ -147,16 +148,21 @@ This makes the drive safe to plug into **air-gapped or untrusted networks** with
 | **Anthropic Claude** | Paid | [console.anthropic.com](https://console.anthropic.com) |
 | **OpenAI** | Paid | [platform.openai.com](https://platform.openai.com) |
 | **Ollama** | Free, fully offline | [ollama.com](https://ollama.com) |
+| **LM Studio (LM Link)** | Free, fully offline | [lmstudio.ai](https://lmstudio.ai) |
 
 ---
 
-## Local Model Performance (Ollama)
+## Local Model Performance (Ollama / LM Studio)
 
 Running a local model on CPU or USB 2.0 is inherently slower than a cloud API. The built-in **speed proxy** (`tools/local-proxy.js`) intercepts every request and trims the OpenClaude system prompt from ~10 000 tokens down to ~300 tokens before it reaches Ollama.
 
 **Typical result:** first-token latency drops from 60–120 s to 5–20 s on CPU-only hardware.
 
-On launch, the proxy detects GPU VRAM via `nvidia-smi`. If 16 GB or more is detected (e.g. RTX 5090 24 GB), prompt trimming is automatically disabled — the full system prompt is passed through to support large-context and security-analyst prompts.
+On launch, the proxy detects GPU VRAM via `nvidia-smi` and **sums the total across all GPUs** to support full-CUDA multi-GPU load splitting. If the combined VRAM reaches 16 GB or more, prompt trimming is automatically disabled — the full system prompt is passed through.
+
+Ollama is started with `OLLAMA_NUM_GPU=999` and without any `CUDA_VISIBLE_DEVICES` restriction, so all available NVIDIA GPUs participate in inference and split the model load evenly. This applies whether you have one high-VRAM card or multiple smaller cards.
+
+**LM Studio (LM Link):** Select provider **7 — LM Studio** to connect directly to the LM Link local API server at `http://localhost:1234/v1`. LM Studio manages its own GPU scheduling, so the speed proxy is bypassed entirely.
 
 Proxy activity is logged silently to `data/proxy.log` — it never writes to the terminal.
 
@@ -177,14 +183,16 @@ Proxy activity is logged silently to `data/proxy.log` — it never writes to the
 | 3 | Gemma 4 E4B Q4_K_M | ~5.0 GB | Most users |
 | 4 | Qwen 3.5 9B | ~6.6 GB | Multimodal |
 | 5 | Ministral 3 8B | ~6.0 GB | Daily driver |
+| 6 | Qwen3 8B | ~5.2 GB | Fast, latest generation |
+| 7 | Qwen3 14B | ~9.3 GB | High quality |
 
-### High-VRAM GPU tier (16 GB+ VRAM — e.g. RTX 5090 24 GB)
+### High-VRAM GPU tier (16 GB+ VRAM — full CUDA multi-GPU splitting)
 
 | # | Model | Size | Best for |
 |---|---|---|---|
-| 6 | `qwen2.5-coder:32b` | ~19 GB | Code generation |
-| 7 | `deepseek-r1:32b` | ~19 GB | Deep reasoning |
-| 8 | `qwen2.5:32b` | ~19 GB | General purpose |
+| 8 | `qwen2.5-coder:32b` | ~19 GB | Code generation |
+| 9 | `deepseek-r1:32b` | ~19 GB | Deep reasoning |
+| 10 | `qwen2.5:32b` | ~19 GB | General purpose |
 
 > For best performance, copy `data/ollama/` to your local SSD if USB 2.0 read speeds are the bottleneck.
 
@@ -226,6 +234,7 @@ Proxy activity is logged silently to `data/proxy.log` — it never writes to the
 | API key rejected | Verify your key at the provider's website; re-run option 4 to update it |
 | Port 3000 already in use | The dashboard is already running — open `http://localhost:3000` directly |
 | `openclaude` not found in PowerShell | Use `.\RESUME.bat <session-id>` instead of calling `openclaude` directly |
+| LM Studio connection refused | Open LM Studio, load a model, and enable the LM Link server (Developer tab → Start Server) |
 
 ---
 

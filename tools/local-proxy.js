@@ -39,12 +39,16 @@ try {
     "nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits",
     { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }
   ).toString().trim();
-  const vramMb = parseInt(raw.split("\n")[0], 10);
-  if (!isNaN(vramMb)) {
-    log(`GPU VRAM detected: ${vramMb} MB`);
+  // Sum VRAM across all GPUs to support full-CUDA multi-GPU load splitting
+  const gpuLines  = raw.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+  const vramValues = gpuLines.map(l => parseInt(l, 10)).filter(n => !isNaN(n));
+  const vramMb    = vramValues.reduce((a, b) => a + b, 0);
+  const gpuCount  = vramValues.length;
+  if (vramMb > 0) {
+    log(`GPU VRAM detected: ${vramMb} MB total across ${gpuCount} GPU(s)`);
     if (vramMb >= 16000) {
       MAX_CHARS = TRIMMING_DISABLED;
-      log(`High-VRAM GPU (${vramMb} MB) — prompt trimming disabled`);
+      log(`High-VRAM detected (${vramMb} MB across ${gpuCount} GPU(s)) — prompt trimming disabled`);
     }
   }
 } catch {

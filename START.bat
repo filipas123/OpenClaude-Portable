@@ -145,10 +145,11 @@ echo   !CYAN!3)!RESET! !BOLD!Gemini!RESET!       !DIM!- Google AI API!RESET!
 echo   !CYAN!4)!RESET! !BOLD!Claude!RESET!       !DIM!- Anthropic API!RESET!
 echo   !CYAN!5)!RESET! !BOLD!OpenAI!RESET!       !DIM!- GPT / Codex API!RESET!
 echo   !CYAN!6)!RESET! !BOLD!Ollama!RESET!       !DIM!- Local Offline AI (No internet)!RESET!
+echo   !CYAN!7)!RESET! !BOLD!LM Studio!RESET!    !DIM!- LM Link Local Server (localhost:1234)!RESET!
 echo.
 :prompt_provider
 set "PROVIDER_SEL="
-set /p "PROVIDER_SEL=  Select your provider !CYAN!(1-6)!RESET!: "
+set /p "PROVIDER_SEL=  Select your provider !CYAN!(1-7)!RESET!: "
 
 if "!PROVIDER_SEL!"=="1" goto setup_openrouter
 if "!PROVIDER_SEL!"=="2" goto setup_nvidia
@@ -156,7 +157,8 @@ if "!PROVIDER_SEL!"=="3" goto setup_gemini
 if "!PROVIDER_SEL!"=="4" goto setup_claude
 if "!PROVIDER_SEL!"=="5" goto setup_openai
 if "!PROVIDER_SEL!"=="6" goto setup_ollama
-echo   !RED![ERROR] Invalid selection. Please choose 1-6.!RESET!
+if "!PROVIDER_SEL!"=="7" goto setup_lmstudio
+echo   !RED![ERROR] Invalid selection. Please choose 1-7.!RESET!
 goto prompt_provider
 
 :: ---------------------------------------------------------
@@ -479,6 +481,26 @@ if "%USER_MODEL%"=="" set "USER_MODEL=llama3.2:3b"
 goto finish_setup
 
 :: ---------------------------------------------------------
+::   LM STUDIO / LM LINK SETUP
+:: ---------------------------------------------------------
+:setup_lmstudio
+echo.
+echo   !CYAN!--- LM STUDIO / LM LINK SETUP ---!RESET!
+echo   !DIM!Make sure LM Studio is running with the LM Link server enabled.!RESET!
+echo.
+set /p "USER_MODEL=  Enter loaded model name !DIM!(Enter for local-model)!RESET!: "
+if "%USER_MODEL%"=="" set "USER_MODEL=local-model"
+(
+    echo AI_PROVIDER=lmstudio
+    echo CLAUDE_CODE_USE_OPENAI=1
+    echo OPENAI_API_KEY=lm-studio
+    echo OPENAI_BASE_URL=http://localhost:1234/v1
+    echo OPENAI_MODEL=%USER_MODEL%
+    echo AI_DISPLAY_MODEL=%USER_MODEL%
+) > "%ENV_FILE%"
+goto finish_setup
+
+:: ---------------------------------------------------------
 ::   OPENAI SETUP
 :: ---------------------------------------------------------
 :setup_openai
@@ -545,11 +567,13 @@ if "!AI_PROVIDER!"=="openai" (
         echo !OPENAI_BASE_URL! | findstr /C:"integrate.api.nvidia.com" >nul && set "PROVIDER_NAME=NVIDIA NIM"
         echo !OPENAI_BASE_URL! | findstr /C:"api.openai.com" >nul && set "PROVIDER_NAME=OpenAI"
         echo !OPENAI_BASE_URL! | findstr /C:"localhost:11434" >nul && set "PROVIDER_NAME=Ollama"
+        echo !OPENAI_BASE_URL! | findstr /C:"localhost:1234" >nul && set "PROVIDER_NAME=LM Studio (LM Link)"
     )
 )
 if "!AI_PROVIDER!"=="gemini" set "PROVIDER_NAME=Google Gemini"
 if "!AI_PROVIDER!"=="anthropic" set "PROVIDER_NAME=Anthropic Claude"
 if "!AI_PROVIDER!"=="ollama" set "PROVIDER_NAME=Ollama (Local)"
+if "!AI_PROVIDER!"=="lmstudio" set "PROVIDER_NAME=LM Studio (LM Link)"
 
 title Portable AI USB - !PROVIDER_NAME! - !AI_DISPLAY_MODEL!
 
@@ -658,7 +682,6 @@ if not exist "%DATA_DIR%\ollama\ollama.exe" goto skip_ollama_start
 echo   !CYAN![~] Starting Local Ollama Server...!RESET!
 set "OLLAMA_MODELS=%DATA_DIR%\ollama\data"
 set "OLLAMA_NUM_GPU=999"
-set "CUDA_VISIBLE_DEVICES=0"
 start "Ollama Portable" /B /MIN "%DATA_DIR%\ollama\ollama.exe" serve >nul 2>&1
 timeout /t 3 /nobreak >nul
 echo   !GREEN![OK] Ollama running!RESET!

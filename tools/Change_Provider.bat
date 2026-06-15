@@ -39,6 +39,7 @@ set "PROVIDER_TYPE=!AI_PROVIDER!"
 if "!AI_PROVIDER!"=="openai" (
     echo !OPENAI_BASE_URL! | findstr /C:"openrouter" >nul && set "PROVIDER_TYPE=openrouter"
     echo !OPENAI_BASE_URL! | findstr /C:"integrate.api.nvidia.com" >nul && set "PROVIDER_TYPE=nvidia"
+    echo !OPENAI_BASE_URL! | findstr /C:"localhost:1234" >nul && set "PROVIDER_TYPE=lmstudio"
 )
 echo   - Provider : !GREEN!!PROVIDER_TYPE!!RESET!
 echo   - Model    : !GREEN!!AI_DISPLAY_MODEL!!RESET!
@@ -239,6 +240,12 @@ goto save_and_exit
     if "!AI_PROVIDER!"=="anthropic" (
         echo ANTHROPIC_API_KEY=!ANTHROPIC_API_KEY!
         echo ANTHROPIC_MODEL=!ANTHROPIC_MODEL!
+    )
+    if "!AI_PROVIDER!"=="lmstudio" (
+        echo CLAUDE_CODE_USE_OPENAI=!CLAUDE_CODE_USE_OPENAI!
+        echo OPENAI_API_KEY=!OPENAI_API_KEY!
+        echo OPENAI_BASE_URL=!OPENAI_BASE_URL!
+        echo OPENAI_MODEL=!OPENAI_MODEL!
     )
     if "!AI_PROVIDER!"=="ollama" (
         echo CLAUDE_CODE_USE_OPENAI=!CLAUDE_CODE_USE_OPENAI!
