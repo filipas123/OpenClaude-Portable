@@ -14,7 +14,12 @@ $ModelCatalog = @(
     
     # Category 2: Qwen 3.5 & Ministral 3
     @{ Num=4; Category="Qwen 3.5 & Ministral 3 (Daily Drivers)"; Name="Qwen 3.5 (9B)"; Tag="qwen3.5:9b"; Size="6.6"; Input="Text, Image"; Label="STANDARD"; Badge="RECOMMENDED" },
-    @{ Num=5; Category="Qwen 3.5 & Ministral 3 (Daily Drivers)"; Name="Ministral 3 (8B)"; Tag="ministral-3:8b"; Size="6.0"; Input="Text, Image"; Label="STANDARD"; Badge="DAILY" }
+    @{ Num=5; Category="Qwen 3.5 & Ministral 3 (Daily Drivers)"; Name="Ministral 3 (8B)"; Tag="ministral-3:8b"; Size="6.0"; Input="Text, Image"; Label="STANDARD"; Badge="DAILY" },
+
+    # Category 3: High-VRAM GPU Tier (RTX 5090 / 16 GB+ VRAM)
+    @{ Num=6; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="Qwen2.5-Coder (32B Q4)"; Tag="qwen2.5-coder:32b"; Size="19"; Input="Code"; Label="GPU"; Badge="BEST CODE" },
+    @{ Num=7; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="DeepSeek-R1 (32B Q4)"; Tag="deepseek-r1:32b"; Size="19"; Input="Reasoning"; Label="GPU"; Badge="DEEP REASON" },
+    @{ Num=8; Category="High-VRAM GPU Tier (16 GB+ VRAM)"; Name="Qwen2.5 (32B Q4)"; Tag="qwen2.5:32b"; Size="19"; Input="Text"; Label="GPU"; Badge="MOST CAPABLE" }
 )
 
 function Get-USBFreeSpaceGB {

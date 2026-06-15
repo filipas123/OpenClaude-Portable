@@ -55,15 +55,19 @@ echo -e "  ${YELLOW}[ 3]${RESET} Gemma 4 E4B (Q4_K_M)     ${CYAN}[Text]${RESET} 
 echo -e "  --- ${CYAN}Qwen 3.5 & Ministral 3 (Daily Drivers)${RESET} ---"
 echo -e "  ${YELLOW}[ 4]${RESET} Qwen 3.5 (9B)            ${CYAN}[Text, Image]${RESET}  ${DIM}(~6.6 GB)${RESET}   ${GREEN}[STANDARD]${RESET} ${MAGENTA}- RECOMMENDED${RESET}"
 echo -e "  ${YELLOW}[ 5]${RESET} Ministral 3 (8B)         ${CYAN}[Text, Image]${RESET}  ${DIM}(~6.0 GB)${RESET}   ${GREEN}[STANDARD]${RESET} ${MAGENTA}- DAILY${RESET}"
+echo -e "  --- ${CYAN}High-VRAM GPU Tier (RTX 5090 / 16 GB+ VRAM)${RESET} ---"
+echo -e "  ${YELLOW}[ 6]${RESET} Qwen2.5-Coder (32B Q4)   ${CYAN}[Code]${RESET}         ${DIM}(~19 GB)${RESET}    ${GREEN}[GPU]${RESET}      ${MAGENTA}- BEST CODE${RESET}"
+echo -e "  ${YELLOW}[ 7]${RESET} DeepSeek-R1 (32B Q4)     ${CYAN}[Reasoning]${RESET}    ${DIM}(~19 GB)${RESET}    ${GREEN}[GPU]${RESET}      ${MAGENTA}- DEEP REASON${RESET}"
+echo -e "  ${YELLOW}[ 8]${RESET} Qwen2.5 (32B Q4)         ${CYAN}[Text]${RESET}         ${DIM}(~19 GB)${RESET}    ${GREEN}[GPU]${RESET}      ${MAGENTA}- MOST CAPABLE${RESET}"
 
 # --- Detect Already Downloaded Models (not in preset list) ---
 MANIFEST_DIR="$OLLAMA_DIR/data/manifests/registry.ollama.ai/library"
 declare -a DL_TAGS=()
 declare -a DL_NAMES=()
-DL_START_NUM=6
+DL_START_NUM=9
 
 if [ -d "$MANIFEST_DIR" ]; then
-    PRESET_SKIP="gemma-4-e2b-it-q4_k_m-local|gemma-4-e2b-it-q6_k-local|gemma-4-e4b-it-q4_k_m-local|qwen3.5|ministral-3"
+    PRESET_SKIP="gemma-4-e2b-it-q4_k_m-local|gemma-4-e2b-it-q6_k-local|gemma-4-e4b-it-q4_k_m-local|qwen3.5|ministral-3|qwen2.5-coder|deepseek-r1|qwen2.5"
     for model_dir in "$MANIFEST_DIR"/*/; do
         [ ! -d "$model_dir" ] && continue
         model_base=$(basename "$model_dir")
@@ -121,6 +125,9 @@ for T in "${TOKENS[@]}"; do
     elif [ "$T" = "3" ]; then SELECTED_MODELS+=("$T"); SELECTED_NAMES+=("Gemma 4 E4B (Q4_K_M)"); SELECTED_TAGS+=("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf")
     elif [ "$T" = "4" ]; then SELECTED_MODELS+=("$T"); SELECTED_NAMES+=("Qwen 3.5 (9B)"); SELECTED_TAGS+=("qwen3.5:9b")
     elif [ "$T" = "5" ]; then SELECTED_MODELS+=("$T"); SELECTED_NAMES+=("Ministral 3 (8B)"); SELECTED_TAGS+=("ministral-3:8b")
+    elif [ "$T" = "6" ]; then SELECTED_MODELS+=("$T"); SELECTED_NAMES+=("Qwen2.5-Coder (32B Q4)"); SELECTED_TAGS+=("qwen2.5-coder:32b")
+    elif [ "$T" = "7" ]; then SELECTED_MODELS+=("$T"); SELECTED_NAMES+=("DeepSeek-R1 (32B Q4)"); SELECTED_TAGS+=("deepseek-r1:32b")
+    elif [ "$T" = "8" ]; then SELECTED_MODELS+=("$T"); SELECTED_NAMES+=("Qwen2.5 (32B Q4)"); SELECTED_TAGS+=("qwen2.5:32b")
     else
         # Check if T is a number in the downloaded models range
         IS_DL=0

@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSy
 import { join, dirname, resolve, relative, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync, exec } from 'child_process';
+import { createHash } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..'); // Portable_AI_USB root
@@ -90,7 +91,7 @@ async function streamExternal(url, headers, body, onChunk, onEnd) {
 }
 
 function sendJSON(res, status, obj) {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:3000' });
     res.end(JSON.stringify(obj));
 }
 
@@ -267,6 +268,64 @@ const TOOL_DEFS = [
             },
             required: ['pattern', 'path']
         }
+    },
+    {
+        name: 'hash_file',
+        description: 'Compute MD5, SHA-1, and SHA-256 hashes of a file. Use for malware identification and integrity verification.',
+        parameters: {
+            type: 'object',
+            properties: {
+                path: { type: 'string', description: 'File path relative to the working directory' }
+            },
+            required: ['path']
+        }
+    },
+    {
+        name: 'check_entropy',
+        description: 'Calculate the Shannon entropy of a file (0–8 bits/byte). Values above 7.0 indicate encryption, packing, or compression — a common malware indicator.',
+        parameters: {
+            type: 'object',
+            properties: {
+                path: { type: 'string', description: 'File path relative to the working directory' }
+            },
+            required: ['path']
+        }
+    },
+    {
+        name: 'grep_iocs',
+        description: 'Search files in a directory for Indicators of Compromise: IPv4 addresses, domains, URLs, file hashes (MD5/SHA1/SHA256), and registry keys. Runs entirely offline.',
+        parameters: {
+            type: 'object',
+            properties: {
+                path: { type: 'string', description: 'Directory to search, relative to working directory' },
+                pattern: { type: 'string', description: 'IoC type: "ipv4", "domain", "md5", "sha1", "sha256", "url", "registry", or "all"' }
+            },
+            required: ['path']
+        }
+    },
+    {
+        name: 'read_binary_strings',
+        description: 'Extract printable ASCII strings from a binary file (like the strings(1) command). Useful for quick malware triage without execution.',
+        parameters: {
+            type: 'object',
+            properties: {
+                path: { type: 'string', description: 'File path relative to the working directory' },
+                min_length: { type: 'number', description: 'Minimum string length to include (default: 4)' }
+            },
+            required: ['path']
+        }
+    },
+    {
+        name: 'parse_log',
+        description: 'Read the last N lines of a plain-text log file (syslog, auth.log, etc.) or query a Windows Event Log .evtx file via wevtutil.',
+        parameters: {
+            type: 'object',
+            properties: {
+                path: { type: 'string', description: 'Log file path relative to working directory' },
+                lines: { type: 'number', description: 'Number of recent entries to return (default: 50)' }
+            },
+            required: ['path']
+        }
     }
 ];
 
@@ -297,6 +356,11 @@ function resolvePath(relPath) {
     return resolve(abs);
 }
 
+function isSafePath(fullPath, baseDir) {
+    const rel = relative(resolve(baseDir), resolve(fullPath));
+    return !rel.startsWith('..') && !isAbsolute(rel);
+}
+
 const WRITE_TOOLS = new Set(['write_file', 'execute_command']);
 
 function executeTool(name, args) {
@@ -304,6 +368,7 @@ function executeTool(name, args) {
         switch (name) {
             case 'write_file': {
                 const fullPath = resolvePath(args.path);
+                if (!isSafePath(fullPath, WORK_DIR)) return { success: false, error: 'Path is outside the working directory sandbox' };
                 const dir = dirname(fullPath);
                 if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
                 writeFileSync(fullPath, args.content, 'utf-8');
@@ -311,6 +376,7 @@ function executeTool(name, args) {
             }
             case 'read_file': {
                 const fullPath = resolvePath(args.path);
+                if (!isSafePath(fullPath, WORK_DIR)) return { success: false, error: 'Path is outside the working directory sandbox' };
                 if (!existsSync(fullPath)) return { success: false, error: `File not found: ${args.path}` };
                 const content = readFileSync(fullPath, 'utf-8');
                 return { success: true, content, size: content.length };
@@ -349,6 +415,100 @@ function executeTool(name, args) {
                     if (e.status === 1) return { success: true, matches: '', message: 'No matches found' };
                     return { success: false, error: e.message };
                 }
+            }
+            case 'hash_file': {
+                const fullPath = resolvePath(args.path);
+                if (!existsSync(fullPath)) return { success: false, error: `File not found: ${args.path}` };
+                const buf = readFileSync(fullPath);
+                const hashes = {};
+                for (const algo of ['md5', 'sha1', 'sha256']) {
+                    hashes[algo] = createHash(algo).update(buf).digest('hex');
+                }
+                return { success: true, path: args.path, size: buf.length, hashes };
+            }
+            case 'check_entropy': {
+                const fullPath = resolvePath(args.path);
+                if (!existsSync(fullPath)) return { success: false, error: `File not found: ${args.path}` };
+                const buf = readFileSync(fullPath);
+                const freq = new Array(256).fill(0);
+                for (const byte of buf) freq[byte]++;
+                let entropy = 0;
+                for (const f of freq) {
+                    if (f === 0) continue;
+                    const p = f / buf.length;
+                    entropy -= p * Math.log2(p);
+                }
+                const suspicious = entropy > 7.0;
+                return { success: true, path: args.path, size: buf.length, entropy: parseFloat(entropy.toFixed(4)), suspicious, note: suspicious ? 'High entropy — possible packer, encryption, or compressed data' : 'Normal entropy' };
+            }
+            case 'grep_iocs': {
+                const searchPath = resolvePath(args.path || '.');
+                const pattern = args.pattern || 'all';
+                const IOC_PATTERNS = {
+                    ipv4: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+                    domain: /\b(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|xyz|ru|cn|info|biz|top|gov|edu)\b/g,
+                    md5: /\b[a-fA-F0-9]{32}\b/g,
+                    sha1: /\b[a-fA-F0-9]{40}\b/g,
+                    sha256: /\b[a-fA-F0-9]{64}\b/g,
+                    url: /https?:\/\/[^\s"'<>]+/g,
+                    registry: /HKEY_[A-Z_]+\\[^\s"']+/g,
+                };
+                const found = {};
+                function walkIoc(dir, depth) {
+                    if (depth > 4) return;
+                    try {
+                        for (const entry of readdirSync(dir)) {
+                            const fp = join(dir, entry);
+                            try {
+                                const st = statSync(fp);
+                                if (st.isDirectory()) { walkIoc(fp, depth + 1); continue; }
+                                if (st.size > 5 * 1024 * 1024) continue;
+                                const content = readFileSync(fp, 'utf-8');
+                                for (const [type, regex] of Object.entries(IOC_PATTERNS)) {
+                                    if (pattern !== 'all' && pattern !== type) continue;
+                                    const matches = content.match(regex) || [];
+                                    if (matches.length > 0) {
+                                        if (!found[type]) found[type] = new Set();
+                                        matches.forEach(m => found[type].add(m));
+                                    }
+                                }
+                            } catch {}
+                        }
+                    } catch {}
+                }
+                walkIoc(searchPath, 0);
+                const results = {};
+                for (const [type, set] of Object.entries(found)) results[type] = [...set].slice(0, 100);
+                return { success: true, path: args.path, iocs: results };
+            }
+            case 'read_binary_strings': {
+                const fullPath = resolvePath(args.path);
+                if (!existsSync(fullPath)) return { success: false, error: `File not found: ${args.path}` };
+                const buf = readFileSync(fullPath);
+                const minLen = args.min_length || 4;
+                const strings = [];
+                let cur = '';
+                for (let i = 0; i < buf.length; i++) {
+                    const c = buf[i];
+                    if (c >= 0x20 && c <= 0x7e) { cur += String.fromCharCode(c); }
+                    else { if (cur.length >= minLen) strings.push(cur); cur = ''; }
+                }
+                if (cur.length >= minLen) strings.push(cur);
+                return { success: true, path: args.path, count: strings.length, strings: strings.slice(0, 500) };
+            }
+            case 'parse_log': {
+                const fullPath = resolvePath(args.path);
+                if (!existsSync(fullPath)) return { success: false, error: `File not found: ${args.path}` };
+                const n = args.lines || 50;
+                if (args.path.endsWith('.evtx') && IS_WIN) {
+                    try {
+                        const out = execSync(`wevtutil qe "${fullPath}" /count:${n} /rd:true /f:text`, { encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] });
+                        return { success: true, format: 'evtx', content: out.slice(0, 20000) };
+                    } catch (e) { return { success: false, error: e.message }; }
+                }
+                const content = readFileSync(fullPath, 'utf-8');
+                const lines = content.split('\n').filter(Boolean);
+                return { success: true, format: 'text', totalLines: lines.length, content: lines.slice(-n).join('\n') };
             }
             default:
                 return { success: false, error: `Unknown tool: ${name}` };
@@ -633,7 +793,7 @@ async function streamChatResponse(messages, cfg, res) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'http://localhost:3000',
     });
 
     const sendSSE = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
@@ -720,7 +880,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
 
     if (req.method === 'OPTIONS') {
-        res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
+        res.writeHead(204, { 'Access-Control-Allow-Origin': 'http://localhost:3000', 'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
         return res.end();
     }
 
@@ -856,7 +1016,9 @@ const server = createServer(async (req, res) => {
         // Logs
         if (url.pathname === '/api/logs' && req.method === 'GET') return sendJSON(res, 200, { logs: getSessionLogs() });
         if (url.pathname === '/api/logs/read' && req.method === 'GET') {
-            const filePath = join(ROOT_DIR, url.searchParams.get('path') || '');
+            const requestedPath = url.searchParams.get('path') || '';
+            const filePath = resolve(join(ROOT_DIR, requestedPath));
+            if (!isSafePath(filePath, ROOT_DIR)) return sendJSON(res, 403, { error: 'Forbidden' });
             if (!existsSync(filePath)) return sendJSON(res, 404, { error: 'Not found' });
             return sendJSON(res, 200, { content: readFileSync(filePath, 'utf-8').slice(0, 10000) });
         }
@@ -945,7 +1107,7 @@ const server = createServer(async (req, res) => {
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': 'http://localhost:3000',
             });
 
             const sendSSE = (data) => { try { res.write(`data: ${JSON.stringify(data)}\n\n`); } catch {} };

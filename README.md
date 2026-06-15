@@ -27,8 +27,11 @@ Everything runs strictly inside the project folder. No files are written to the 
 |---|---|
 | **6 AI Providers** | NVIDIA NIM · OpenRouter · Google Gemini · Anthropic Claude · OpenAI · Ollama (offline) |
 | **Zero Footprint** | All data, keys, and logs stay inside `data/` — nothing touches the host system |
-| **Local Speed Proxy** | Trims system prompts by up to 90% before sending to Ollama, dramatically improving response time on CPU-only hardware |
-| **Auto-Update Cache** | Checks for engine updates once per day (skips the network call on repeat launches) |
+| **Cyber Analyst Mode** | Dedicated security-analyst persona with offline forensics tools (DFIR, malware triage, IoC sweep, entropy analysis) |
+| **Air-Gap / Offline First** | After first setup, the drive never phones home on launch — safe to plug into untrusted machines |
+| **Local Speed Proxy** | Trims system prompts for CPU inference; auto-disabled on high-VRAM GPUs (RTX 5090 / 16 GB+ VRAM) |
+| **GPU-Accelerated Local AI** | Ollama launched with `OLLAMA_NUM_GPU=999` to fully offload to NVIDIA GPU; supports 32B-class models on 24 GB VRAM |
+| **Auto-Update Cache** | Checks for engine updates once per day (skipped entirely after `OFFLINE_READY` flag is written) |
 | **Session Resume** | Resume any interrupted session with `RESUME.bat <session-id>` |
 | **Web Dashboard** | ChatGPT-style browser UI with agent mode, tool cards, and thinking visualisation |
 | **Limitless Mode** | Optional full-autonomy mode — the agent runs without asking for approval |
@@ -63,10 +66,14 @@ OpenClaude-Multi-Platform/
 ├── start.sh                   Linux/macOS entry point
 ├── RESUME.bat                 Resume a previous session by ID (Windows)
 │
+├── prompts/                   System prompt templates
+│   └── cyber_analyst.txt      Cybersecurity Analyst persona (loaded by Cyber Analyst Mode)
+│
 ├── data/                      All persistent data (shared across platforms)
-│   ├── ai_settings.env        Active provider, model, and API key
+│   ├── ai_settings.env        Active provider, model, API key, and OFFLINE_READY flag
 │   ├── openclaude/            Session history and agent memory
 │   ├── ollama/                Local Ollama binary and model storage
+│   ├── work/cyber/            Cyber Analyst Mode working directory + CLAUDE.md
 │   └── proxy.log              Speed proxy activity log (silent background)
 │
 ├── engine/                    Node.js runtime + OpenClaude npm package
@@ -96,19 +103,41 @@ OpenClaude-Multi-Platform/
 When you run `START.bat`, you are presented with:
 
 ```
-1) Launch AI       — Normal Mode      (asks before writing files or running commands)
-2) Limitless Mode  — Auto-executes    (fully autonomous, no approval prompts)
-3) Open Dashboard  — Web UI at http://localhost:3000
-4) Change Provider — Switch model or API key
-5) Setup Offline   — Download local Ollama models
+1) Launch AI        — Normal Mode      (asks before writing files or running commands)
+2) Cyber Analyst    — Security Mode    (DFIR, malware triage, IoC hunting — air-gap safe)
+3) Limitless Mode   — Auto-executes    (fully autonomous, no approval prompts)
+4) Open Dashboard   — Web UI at http://localhost:3000
+5) Change Provider  — Switch model or API key
+6) Setup Offline    — Download local Ollama models
+7) Check for Updates — Manually fetch the latest engine version
 ```
 
 The menu auto-selects **Normal Mode** after 10 seconds if no key is pressed.
 
+### Cyber Analyst Mode
 
+Select option **2** to launch as a Senior Cybersecurity Analyst. This mode:
 
+- Loads the analyst persona from `prompts/cyber_analyst.txt` as a `CLAUDE.md` file in `data/work/cyber/`
+- Activates DFIR, malware analysis, network forensics, and IoC-hunting capabilities
+- Enforces air-gap discipline — no external calls, minimal footprint, evidence preservation
+- Makes the following dashboard tools available: `hash_file`, `check_entropy`, `grep_iocs`, `read_binary_strings`, `parse_log`
 
-## Supported AI Providers
+**Structured output format:** every finding is reported with Severity, Confidence, Indicator, Evidence, MITRE ATT&CK TTP, and Recommended Action.
+
+---
+
+## Air-Gap / Offline Use
+
+After your first provider setup, the drive writes an `OFFLINE_READY=1` flag to `data/ai_settings.env`. On every subsequent launch:
+
+- **No update checks happen automatically** — zero outbound connections on startup
+- To manually check for engine updates, choose option **7 — Check for Updates** from the menu
+- The flag is set automatically when you run setup; you can also add `OFFLINE_READY=1` to `data/ai_settings.env` manually
+
+This makes the drive safe to plug into **air-gapped or untrusted networks** without the risk of any network traffic being generated on launch.
+
+---
 
 | Provider | Cost | API Key |
 |---|---|---|
@@ -127,15 +156,35 @@ Running a local model on CPU or USB 2.0 is inherently slower than a cloud API. T
 
 **Typical result:** first-token latency drops from 60–120 s to 5–20 s on CPU-only hardware.
 
+On launch, the proxy detects GPU VRAM via `nvidia-smi`. If 16 GB or more is detected (e.g. RTX 5090 24 GB), prompt trimming is automatically disabled — the full system prompt is passed through to support large-context and security-analyst prompts.
+
 Proxy activity is logged silently to `data/proxy.log` — it never writes to the terminal.
 
-**Recommended models for CPU inference:**
+### CPU-tier models (≤8 GB VRAM or CPU-only)
 
 | Model | Size | Speed |
 |---|---|---|
 | `gemma3:1b` | ~800 MB | Fastest |
 | `qwen2.5:1.5b` | ~1 GB | Fast |
 | `phi3:mini` | ~2.3 GB | Moderate |
+
+### Standard models (8–16 GB VRAM or fast CPU)
+
+| # | Model | Size | Best for |
+|---|---|---|---|
+| 1 | Gemma 4 E2B Q4_K_M | ~3.1 GB | Balanced speed/quality |
+| 2 | Gemma 4 E2B Q6_K | ~4.5 GB | Stronger reasoning |
+| 3 | Gemma 4 E4B Q4_K_M | ~5.0 GB | Most users |
+| 4 | Qwen 3.5 9B | ~6.6 GB | Multimodal |
+| 5 | Ministral 3 8B | ~6.0 GB | Daily driver |
+
+### High-VRAM GPU tier (16 GB+ VRAM — e.g. RTX 5090 24 GB)
+
+| # | Model | Size | Best for |
+|---|---|---|---|
+| 6 | `qwen2.5-coder:32b` | ~19 GB | Code generation |
+| 7 | `deepseek-r1:32b` | ~19 GB | Deep reasoning |
+| 8 | `qwen2.5:32b` | ~19 GB | General purpose |
 
 > For best performance, copy `data/ollama/` to your local SSD if USB 2.0 read speeds are the bottleneck.
 
@@ -147,6 +196,10 @@ Proxy activity is logged silently to `data/proxy.log` — it never writes to the
 - **No Telemetry** — Nothing is sent anywhere except your chosen AI provider.
 - **API Key Safety** — Keys are stored only in `data/ai_settings.env` on your drive.
 - **Approval Mode** — In Normal Mode the agent asks before any file write or shell command.
+- **Offline First** — After first setup, zero outbound connections are made on launch (`OFFLINE_READY` flag). Safe to use on air-gapped or untrusted networks.
+- **CORS Hardened** — The dashboard server only accepts requests from `http://localhost:3000`.
+- **Path Sandbox** — File read/write tools are restricted to the `data/work/` directory; path traversal attempts are blocked.
+- **No eval()** — Shell scripts use Bash arrays instead of `eval` for model selection to prevent injection.
 
 ---
 

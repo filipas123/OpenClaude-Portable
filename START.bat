@@ -82,31 +82,41 @@ for %%A in (%*) do (
 if !SKIP_UPDATE!==1 (
     echo   !DIM![~] Offline mode - skipping update check!RESET!
 ) else (
-    :: Only check for updates once per day using a timestamp file
-    set "UPDATE_STAMP=%DATA_DIR%\last_update_check.txt"
-    set "TODAY_DATE="
-    for /f "tokens=*" %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd"') do set "TODAY_DATE=%%D"
-
-    set "LAST_CHECK="
-    if exist "!UPDATE_STAMP!" (
-        set /p "LAST_CHECK="<"!UPDATE_STAMP!"
+    :: Check for OFFLINE_READY flag in env file
+    set "OFFLINE_READY_FLAG=0"
+    if exist "%ENV_FILE%" (
+        findstr /C:"OFFLINE_READY=1" "%ENV_FILE%" >nul 2>&1
+        if not errorlevel 1 set "OFFLINE_READY_FLAG=1"
     )
-
-    if "!LAST_CHECK!"=="!TODAY_DATE!" (
-        echo   !DIM![~] Update check already done today - skipping!RESET!
+    if "!OFFLINE_READY_FLAG!"=="1" (
+        echo   !DIM![~] Offline-ready drive - skipping update check. Choose 'Check for Updates' from the menu to update.!RESET!
     ) else (
-        echo   !YELLOW![~] Checking for engine updates...!RESET!
-        pushd "%ENGINE_DIR%"
-        call npm.cmd outdated @gitlawb/openclaude >nul 2>&1
-        if errorlevel 1 (
-            echo   !YELLOW![~] New version detected! Upgrading...!RESET!
-            call npm.cmd install @gitlawb/openclaude@latest --no-audit --no-fund --loglevel=error --no-bin-links >nul 2>&1
-            echo   !GREEN![OK] Engine upgraded to latest version!!RESET!
-        ) else (
-            echo   !GREEN![OK] Engine is up to date!!RESET!
+        :: Only check for updates once per day using a timestamp file
+        set "UPDATE_STAMP=%DATA_DIR%\last_update_check.txt"
+        set "TODAY_DATE="
+        for /f "tokens=*" %%D in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd"') do set "TODAY_DATE=%%D"
+
+        set "LAST_CHECK="
+        if exist "!UPDATE_STAMP!" (
+            set /p "LAST_CHECK="<"!UPDATE_STAMP!"
         )
-        popd
-        echo !TODAY_DATE!>"!UPDATE_STAMP!"
+
+        if "!LAST_CHECK!"=="!TODAY_DATE!" (
+            echo   !DIM![~] Update check already done today - skipping!RESET!
+        ) else (
+            echo   !YELLOW![~] Checking for engine updates...!RESET!
+            pushd "%ENGINE_DIR%"
+            call npm.cmd outdated @gitlawb/openclaude >nul 2>&1
+            if errorlevel 1 (
+                echo   !YELLOW![~] New version detected! Upgrading...!RESET!
+                call npm.cmd install @gitlawb/openclaude@latest --no-audit --no-fund --loglevel=error --no-bin-links >nul 2>&1
+                echo   !GREEN![OK] Engine upgraded to latest version!!RESET!
+            ) else (
+                echo   !GREEN![OK] Engine is up to date!!RESET!
+            )
+            popd
+            echo !TODAY_DATE!>"!UPDATE_STAMP!"
+        )
     )
 )
 echo.
@@ -508,6 +518,11 @@ goto finish_setup
 echo.
 echo   !GREEN![OK] Settings saved!!RESET!
 echo.
+:: Mark drive as offline-ready after first successful provider setup
+findstr /C:"OFFLINE_READY=1" "%ENV_FILE%" >nul 2>&1
+if errorlevel 1 (
+    echo OFFLINE_READY=1>>"%ENV_FILE%"
+)
 
 :: ---------------------------------------------------------
 ::   LOAD SETTINGS + WELCOME BACK SCREEN
@@ -550,6 +565,7 @@ echo !CYAN!=========================================================!RESET!
 echo.
 
 :prompt_launch_mode
+set "LAUNCH_DIR=%ENGINE_DIR%"
 :: Quick mode: skip menu, go straight to limitless
 if !QUICK_MODE!==1 (
     echo   !RED!!BOLD!QUICK LAUNCH - Limitless Mode!RESET!
@@ -557,40 +573,71 @@ if !QUICK_MODE!==1 (
 )
 echo   !BOLD!Select Action:!RESET!
 echo   🚀 !CYAN!1)!RESET! !GREEN!Launch AI!RESET!       !DIM!- Normal Mode (Auto-starts in 10s)!RESET!
-echo   ⚡ !CYAN!2)!RESET! !RED!Limitless Mode!RESET!  !DIM!- Auto-executes everything (Advanced)!RESET!
+echo   🔐 !CYAN!2)!RESET! !CYAN!Cyber Analyst!RESET!   !DIM!- Security-focused mode!RESET!
+echo   ⚡ !CYAN!3)!RESET! !RED!Limitless Mode!RESET!  !DIM!- Auto-executes everything (Advanced)!RESET!
 echo   !DIM!─────────────────────────────────────────────────────────!RESET!
-echo   📊 !CYAN!3)!RESET! !BOLD!Open Dashboard!RESET!  !DIM!- View your chats visually!RESET!
-echo   ⚙️  !CYAN!4)!RESET! !BOLD!Change Provider!RESET! !DIM!- Switch your AI provider or API Key!RESET!
-echo   💾 !CYAN!5)!RESET! !BOLD!Setup Offline!RESET!   !DIM!- Download local AI models (Ollama)!RESET!
+echo   📊 !CYAN!4)!RESET! !BOLD!Open Dashboard!RESET!  !DIM!- View your chats visually!RESET!
+echo   ⚙️  !CYAN!5)!RESET! !BOLD!Change Provider!RESET! !DIM!- Switch your AI provider or API Key!RESET!
+echo   💾 !CYAN!6)!RESET! !BOLD!Setup Offline!RESET!   !DIM!- Download local AI models (Ollama)!RESET!
+echo   🔄 !CYAN!7)!RESET! !BOLD!Check for Updates!RESET! !DIM!- Fetch latest engine version!RESET!
 echo.
 echo   !DIM!  Auto-launching in 10 seconds... press a key to choose.!RESET!
 echo.
-set /p "=  Select action (1-5): " <nul
-choice /c 12345 /n /t 10 /d 1
+set /p "=  Select action (1-7): " <nul
+choice /c 1234567 /n /t 10 /d 1
 set "LAUNCH_MODE=!ERRORLEVEL!"
 :menu_done
 echo.
 
 if "!LAUNCH_MODE!"=="1" goto launch_normal
-if "!LAUNCH_MODE!"=="2" goto launch_limitless
-if "!LAUNCH_MODE!"=="3" (
+if "!LAUNCH_MODE!"=="2" goto launch_cyber
+if "!LAUNCH_MODE!"=="3" goto launch_limitless
+if "!LAUNCH_MODE!"=="4" (
     echo.
     call "%USB_ROOT%tools\Open_Dashboard.bat"
     exit /b
 )
-if "!LAUNCH_MODE!"=="4" (
+if "!LAUNCH_MODE!"=="5" (
     echo.
     call "%USB_ROOT%tools\Change_Provider.bat"
     exit /b
 )
-if "!LAUNCH_MODE!"=="5" (
+if "!LAUNCH_MODE!"=="6" (
     echo.
     call "%USB_ROOT%tools\Setup_Local_Models.bat"
     exit /b
 )
+if "!LAUNCH_MODE!"=="7" (
+    echo.
+    echo   !YELLOW![~] Checking for engine updates...!RESET!
+    pushd "%ENGINE_DIR%"
+    call npm.cmd outdated @gitlawb/openclaude >nul 2>&1
+    if errorlevel 1 (
+        echo   !YELLOW![~] New version detected! Upgrading...!RESET!
+        call npm.cmd install @gitlawb/openclaude@latest --no-audit --no-fund --loglevel=error --no-bin-links >nul 2>&1
+        echo   !GREEN![OK] Engine upgraded to latest version!!RESET!
+    ) else (
+        echo   !GREEN![OK] Engine is up to date!!RESET!
+    )
+    popd
+    echo.
+    goto prompt_launch_mode
+)
 echo   !RED![ERROR] Invalid selection.!RESET!
 echo.
 goto prompt_launch_mode
+
+:launch_cyber
+echo.
+echo   !CYAN![OK] Cyber Analyst mode activated.!RESET!
+set "CYBER_WORK_DIR=%DATA_DIR%\work\cyber"
+if not exist "!CYBER_WORK_DIR!" mkdir "!CYBER_WORK_DIR!"
+if exist "%USB_ROOT%prompts\cyber_analyst.txt" (
+    copy /Y "%USB_ROOT%prompts\cyber_analyst.txt" "!CYBER_WORK_DIR!\CLAUDE.md" >nul
+)
+set "LAUNCH_DIR=!CYBER_WORK_DIR!"
+set "CMD_ARGS="
+goto do_launch
 
 :launch_limitless
 echo.
@@ -610,6 +657,8 @@ if not exist "%DATA_DIR%\ollama\ollama.exe" goto skip_ollama_start
 
 echo   !CYAN![~] Starting Local Ollama Server...!RESET!
 set "OLLAMA_MODELS=%DATA_DIR%\ollama\data"
+set "OLLAMA_NUM_GPU=999"
+set "CUDA_VISIBLE_DEVICES=0"
 start "Ollama Portable" /B /MIN "%DATA_DIR%\ollama\ollama.exe" serve >nul 2>&1
 timeout /t 3 /nobreak >nul
 echo   !GREEN![OK] Ollama running!RESET!
@@ -637,8 +686,9 @@ if defined AI_PROVIDER set "PROVIDER_ARGS=--provider !AI_PROVIDER!"
 
 set "OC_BIN=%ENGINE_DIR%\node_modules\@gitlawb\openclaude\bin\openclaude"
 
-pushd "%ENGINE_DIR%"
+pushd "!LAUNCH_DIR!"
 if exist "%OC_BIN%" goto use_oc_bin
+pushd "%ENGINE_DIR%"
 call npx.cmd openclaude !PROVIDER_ARGS! !CMD_ARGS!
 goto engine_done
 :use_oc_bin

@@ -12,6 +12,7 @@
 const http = require("http");
 const fs   = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const PROXY_PORT  = 11435;
 const OLLAMA_HOST = "127.0.0.1";
@@ -26,12 +27,31 @@ function log(msg) {
 }
 
 // ---------------------------------------------------------------------------
+// Detect GPU VRAM — if a powerful GPU is present, skip prompt trimming
+// ---------------------------------------------------------------------------
+let MAX_CHARS = 1200; // default: ~300 tokens (for CPU/low-VRAM inference)
+try {
+  const raw = execSync(
+    "nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits",
+    { timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }
+  ).toString().trim();
+  const vramMb = parseInt(raw.split("\n")[0], 10);
+  if (!isNaN(vramMb)) {
+    log(`GPU VRAM detected: ${vramMb} MB`);
+    if (vramMb >= 16000) {
+      MAX_CHARS = 1_000_000; // effectively disable trimming on high-VRAM GPUs
+      log(`High-VRAM GPU (${vramMb} MB) — prompt trimming disabled`);
+    }
+  }
+} catch {
+  log("nvidia-smi not available — using default prompt trimming");
+}
+
+// ---------------------------------------------------------------------------
 // System prompt trimmer
 // ---------------------------------------------------------------------------
 function trimSystemPrompt(content) {
   if (typeof content !== "string") return content;
-
-  const MAX_CHARS = 1200; // ~300 tokens
 
   if (content.length <= MAX_CHARS) return content;
 

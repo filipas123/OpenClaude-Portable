@@ -167,10 +167,11 @@ case "$OPTION" in
                 if [ -z "$MODELS" ]; then
                     read -p "  Could not fetch models. Enter string manually: " NEW_MODEL
                 else
+                    declare -a MODEL_ARR=()
                     idx=1
                     while IFS= read -r model; do
                         echo -e "  ${CYAN}${idx})${RESET} $model"
-                        eval "MODEL_${idx}='$model'"
+                        MODEL_ARR[$idx]="$model"
                         idx=$((idx+1))
                     done <<< "$MODELS"
                     echo -e "  ${CYAN}${idx})${RESET} Custom Model..."
@@ -178,7 +179,7 @@ case "$OPTION" in
                     if [ "$MODEL_SEL" = "$idx" ]; then
                         read -p "  Enter custom model string: " NEW_MODEL
                     else
-                        eval "NEW_MODEL=\$MODEL_${MODEL_SEL}"
+                        NEW_MODEL="${MODEL_ARR[$MODEL_SEL]}"
                     fi
                 fi
                 [ -n "$NEW_MODEL" ] && OPENAI_MODEL="$NEW_MODEL" && AI_DISPLAY_MODEL="$NEW_MODEL"
@@ -188,10 +189,11 @@ case "$OPTION" in
                 if [ -z "$MODELS" ]; then
                     read -p "  Could not fetch models. Enter string manually: " NEW_MODEL
                 else
+                    declare -a MODEL_ARR=()
                     idx=1
                     while IFS= read -r model; do
                         echo -e "  ${CYAN}${idx})${RESET} $model"
-                        eval "MODEL_${idx}='$model'"
+                        MODEL_ARR[$idx]="$model"
                         idx=$((idx+1))
                     done <<< "$MODELS"
                     echo -e "  ${CYAN}${idx})${RESET} Custom Model..."
@@ -199,7 +201,7 @@ case "$OPTION" in
                     if [ "$MODEL_SEL" = "$idx" ]; then
                         read -p "  Enter custom model string: " NEW_MODEL
                     else
-                        eval "NEW_MODEL=\$MODEL_${MODEL_SEL}"
+                        NEW_MODEL="${MODEL_ARR[$MODEL_SEL]}"
                     fi
                 fi
                 [ -n "$NEW_MODEL" ] && OPENAI_MODEL="$NEW_MODEL" && AI_DISPLAY_MODEL="$NEW_MODEL"
@@ -209,11 +211,12 @@ case "$OPTION" in
                 if [ -z "$MODELS" ]; then
                     read -p "  Could not fetch models. Enter string manually: " NEW_MODEL
                 else
+                    declare -a MODEL_ARR=()
                     idx=1
                     while IFS= read -r model; do
                         [ -z "$model" ] && continue
                         echo -e "  ${CYAN}${idx})${RESET} $model"
-                        eval "MODEL_${idx}='$model'"
+                        MODEL_ARR[$idx]="$model"
                         idx=$((idx+1))
                     done <<< "$MODELS"
                     echo -e "  ${CYAN}${idx})${RESET} Custom Model..."
@@ -222,7 +225,7 @@ case "$OPTION" in
                     if [ "$MODEL_SEL" = "$idx" ]; then
                         read -p "  Enter custom model string: " NEW_MODEL
                     else
-                        eval "NEW_MODEL=\$MODEL_${MODEL_SEL}"
+                        NEW_MODEL="${MODEL_ARR[$MODEL_SEL]}"
                     fi
                 fi
                 [ -n "$NEW_MODEL" ] && GEMINI_MODEL="$NEW_MODEL" && AI_DISPLAY_MODEL="$NEW_MODEL"

@@ -96,6 +96,8 @@ done
 # ─── Check for Engine Updates ────────────────────────────────
 if [ $SKIP_UPDATE -eq 1 ]; then
     echo -e "  ${DIM}[~] Offline mode - skipping update check${RESET}"
+elif grep -q "OFFLINE_READY=1" "$ENV_FILE" 2>/dev/null; then
+    echo -e "  ${DIM}[~] Offline-ready drive — skipping update check. Use 'Check for Updates' from the menu to update.${RESET}"
 else
     echo -e "  ${YELLOW}[~] Checking for engine updates...${RESET}"
     cd "$ENGINE_DIR"
@@ -129,6 +131,10 @@ fi
 # ─── Provider Setup ────────────────────────────────────────
 save_env() {
     echo "$1" > "$ENV_FILE"
+    # Mark drive as offline-ready after first successful provider setup
+    if ! grep -q "OFFLINE_READY=1" "$ENV_FILE" 2>/dev/null; then
+        echo "OFFLINE_READY=1" >> "$ENV_FILE"
+    fi
 }
 
 setup_provider() {
@@ -208,10 +214,11 @@ setup_openrouter() {
         echo -e "  ${YELLOW}[API Error] Could not fetch models. Enter manually.${RESET}"
         read -p "  Enter model string: " USER_MODEL
     else
+        declare -a MODEL_ARR=()
         idx=1
         while IFS= read -r model; do
             echo -e "  ${CYAN}${idx})${RESET} $model"
-            eval "MODEL_${idx}='$model'"
+            MODEL_ARR[$idx]="$model"
             idx=$((idx+1))
         done <<< "$MODELS"
         echo -e "  ${CYAN}${idx})${RESET} ${DIM}Custom Model...${RESET}"
@@ -220,7 +227,7 @@ setup_openrouter() {
         if [ "$MODEL_SEL" = "$idx" ]; then
             read -p "  Enter custom model string: " USER_MODEL
         else
-            eval "USER_MODEL=\$MODEL_${MODEL_SEL}"
+            USER_MODEL="${MODEL_ARR[$MODEL_SEL]}"
         fi
     fi
 
@@ -257,11 +264,12 @@ setup_gemini() {
         echo -e "  ${YELLOW}[API Error] Could not fetch models. Enter manually.${RESET}"
         read -p "  Enter model string: " USER_MODEL
     else
+        declare -a MODEL_ARR=()
         idx=1
         while IFS= read -r model; do
             [ -z "$model" ] && continue
             echo -e "  ${CYAN}${idx})${RESET} $model"
-            eval "MODEL_${idx}='$model'"
+            MODEL_ARR[$idx]="$model"
             idx=$((idx+1))
         done <<< "$MODELS"
         echo -e "  ${CYAN}${idx})${RESET} ${DIM}Custom Model...${RESET}"
@@ -271,7 +279,7 @@ setup_gemini() {
         if [ "$MODEL_SEL" = "$idx" ]; then
             read -p "  Enter custom model string: " USER_MODEL
         else
-            eval "USER_MODEL=\$MODEL_${MODEL_SEL}"
+            USER_MODEL="${MODEL_ARR[$MODEL_SEL]}"
         fi
     fi
     save_env "AI_PROVIDER=gemini
@@ -412,11 +420,12 @@ setup_nvidia() {
         echo -e "  ${YELLOW}[API Error] Could not fetch models. Entering fallback...${RESET}"
         USER_MODEL="meta/llama-3.3-70b-instruct"
     else
+        declare -a MODEL_ARR=()
         idx=1
         while IFS= read -r model; do
             [ -z "$model" ] && continue
             echo -e "  ${CYAN}${idx})${RESET} $model"
-            eval "MODEL_${idx}='$model'"
+            MODEL_ARR[$idx]="$model"
             idx=$((idx+1))
         done <<< "$MODELS"
         echo -e "  ${CYAN}${idx})${RESET} ${DIM}Custom Model...${RESET}"
@@ -426,7 +435,7 @@ setup_nvidia() {
         if [ "$MODEL_SEL" = "$idx" ]; then
             read -p "  Enter custom model string: " USER_MODEL
         else
-            eval "USER_MODEL=\$MODEL_${MODEL_SEL}"
+            USER_MODEL="${MODEL_ARR[$MODEL_SEL]}"
         fi
     fi
 
@@ -485,6 +494,7 @@ echo ""
 
 # ─── Launch Mode ─────────────────────────────────────────────
 
+LAUNCH_DIR="$ENGINE_DIR"
 CMD_ARGS=""
 if [ $QUICK_MODE -eq 1 ]; then
     echo -e "  ${RED}${BOLD}QUICK LAUNCH - Limitless Mode${RESET}"
@@ -494,24 +504,26 @@ else
     while true; do
         echo -e "  ${BOLD}Select Action:${RESET}"
         echo -e "  🚀 ${CYAN}1)${RESET} ${GREEN}Launch AI${RESET}       ${DIM}- Normal Mode (Auto-starts in 10s)${RESET}"
-        echo -e "  ⚡ ${CYAN}2)${RESET} ${RED}Limitless Mode${RESET}  ${DIM}- Auto-executes everything (Advanced)${RESET}"
+        echo -e "  🔐 ${CYAN}2)${RESET} ${CYAN}Cyber Analyst${RESET}   ${DIM}- Security-focused mode${RESET}"
+        echo -e "  ⚡ ${CYAN}3)${RESET} ${RED}Limitless Mode${RESET}  ${DIM}- Auto-executes everything (Advanced)${RESET}"
         echo -e "  ${DIM}─────────────────────────────────────────────────────────${RESET}"
-        echo -e "   ${CYAN}3)${RESET} ${BOLD}Open Dashboard${RESET}  ${DIM}- View your chats visually${RESET}"
-        echo -e "   ${CYAN}4)${RESET} ${BOLD}Change Provider${RESET} ${DIM}- Switch your AI provider or API Key${RESET}"
-        echo -e "   ${CYAN}5)${RESET} ${BOLD}Setup Offline${RESET}   ${DIM}- Download local AI models (Ollama)${RESET}"
+        echo -e "   ${CYAN}4)${RESET} ${BOLD}Open Dashboard${RESET}  ${DIM}- View your chats visually${RESET}"
+        echo -e "   ${CYAN}5)${RESET} ${BOLD}Change Provider${RESET} ${DIM}- Switch your AI provider or API Key${RESET}"
+        echo -e "   ${CYAN}6)${RESET} ${BOLD}Setup Offline${RESET}   ${DIM}- Download local AI models (Ollama)${RESET}"
+        echo -e "   ${CYAN}7)${RESET} ${BOLD}Check for Updates${RESET} ${DIM}- Fetch latest engine version${RESET}"
         echo ""
         
         # Read with a visual 10-second countdown
         LAUNCH_MODE=""
         for i in {10..1}; do
-            echo -ne "\r  Select action (1-5) [Auto in $i]: "
+            echo -ne "\r  Select action (1-7) [Auto in $i]: "
             if read -t 1 -n 1 LAUNCH_MODE; then
                 break
             fi
         done
         if [ -z "$LAUNCH_MODE" ]; then
             LAUNCH_MODE="1"
-            echo -ne "\r  Select action (1-5) [Auto in 0]: "
+            echo -ne "\r  Select action (1-7) [Auto in 0]: "
         fi
         echo ""
 
@@ -523,21 +535,46 @@ else
                 ;;
             2)
                 echo ""
-                echo -e "  ${RED}${BOLD}[!] LIMITLESS MODE ACTIVATED${RESET}"
-                CMD_ARGS="--dangerously-skip-permissions"
+                echo -e "  ${CYAN}[OK] Cyber Analyst mode activated.${RESET}"
+                CYBER_WORK_DIR="$DATA_DIR/work/cyber"
+                mkdir -p "$CYBER_WORK_DIR"
+                PROMPT_SRC="$ROOT_DIR/prompts/cyber_analyst.txt"
+                if [ -f "$PROMPT_SRC" ]; then
+                    cp "$PROMPT_SRC" "$CYBER_WORK_DIR/CLAUDE.md"
+                fi
+                LAUNCH_DIR="$CYBER_WORK_DIR"
                 break
                 ;;
             3)
                 echo ""
-                exec bash "$ROOT_DIR/tools/open_dashboard.sh"
+                echo -e "  ${RED}${BOLD}[!] LIMITLESS MODE ACTIVATED${RESET}"
+                CMD_ARGS="--dangerously-skip-permissions"
+                break
                 ;;
             4)
                 echo ""
-                exec bash "$ROOT_DIR/tools/change_provider.sh"
+                exec bash "$ROOT_DIR/tools/open_dashboard.sh"
                 ;;
             5)
                 echo ""
+                exec bash "$ROOT_DIR/tools/change_provider.sh"
+                ;;
+            6)
+                echo ""
                 exec bash "$ROOT_DIR/tools/setup_local_models.sh"
+                ;;
+            7)
+                echo ""
+                echo -e "  ${YELLOW}[~] Checking for engine updates...${RESET}"
+                cd "$ENGINE_DIR"
+                if npm outdated @gitlawb/openclaude 2>/dev/null | grep -q openclaude; then
+                    echo -e "  ${YELLOW}[~] New version detected! Upgrading...${RESET}"
+                    npm install @gitlawb/openclaude@latest --no-audit --no-fund --loglevel=error --no-bin-links >/dev/null 2>&1
+                    echo -e "  ${GREEN}[OK] Engine upgraded to latest version!${RESET}"
+                else
+                    echo -e "  ${GREEN}[OK] Engine is up to date!${RESET}"
+                fi
+                echo ""
                 ;;
             *)
                 echo -e "  ${RED}[ERROR] Invalid selection.${RESET}\n"
@@ -552,6 +589,8 @@ if [ "$AI_PROVIDER" = "ollama" ]; then
     if [ -x "$OLLAMA_BIN" ]; then
         echo -e "  ${CYAN}[~] Starting Local Ollama Server...${RESET}"
         export OLLAMA_MODELS="$DATA_DIR/ollama/data"
+        export OLLAMA_NUM_GPU=999
+        export CUDA_VISIBLE_DEVICES=0
         "$OLLAMA_BIN" serve >/dev/null 2>&1 &
         OLLAMA_PID=$!
         sleep 3
@@ -574,13 +613,14 @@ if [ -n "$AI_PROVIDER" ]; then
     PROVIDER_ARGS="--provider $OC_PROVIDER"
 fi
 
-cd "$ENGINE_DIR"
+cd "$LAUNCH_DIR"
 
 # Use portable binary directly (not npx)
 OC_BIN="$ENGINE_DIR/node_modules/@gitlawb/openclaude/bin/openclaude"
 if [ -f "$OC_BIN" ]; then
     "$NODE_BIN" "$OC_BIN" $PROVIDER_ARGS $CMD_ARGS
 else
+    cd "$ENGINE_DIR"
     npx openclaude $PROVIDER_ARGS $CMD_ARGS
 fi
 
