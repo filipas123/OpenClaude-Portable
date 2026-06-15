@@ -29,6 +29,10 @@ function log(msg) {
 // ---------------------------------------------------------------------------
 // Detect GPU VRAM — if a powerful GPU is present, skip prompt trimming
 // ---------------------------------------------------------------------------
+// When VRAM is large enough to hold the full model + context, trimming
+// is not needed. Use a value large enough to never trigger in practice.
+const TRIMMING_DISABLED = Number.MAX_SAFE_INTEGER;
+
 let MAX_CHARS = 1200; // default: ~300 tokens (for CPU/low-VRAM inference)
 try {
   const raw = execSync(
@@ -39,7 +43,7 @@ try {
   if (!isNaN(vramMb)) {
     log(`GPU VRAM detected: ${vramMb} MB`);
     if (vramMb >= 16000) {
-      MAX_CHARS = 1_000_000; // effectively disable trimming on high-VRAM GPUs
+      MAX_CHARS = TRIMMING_DISABLED;
       log(`High-VRAM GPU (${vramMb} MB) — prompt trimming disabled`);
     }
   }

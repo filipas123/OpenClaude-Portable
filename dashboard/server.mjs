@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, unlinkSync } from 'fs';
 import { join, dirname, resolve, relative, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync, exec } from 'child_process';
+import { execSync, execFileSync, exec } from 'child_process';
 import { createHash } from 'crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +19,13 @@ const ARCH_DIR = process.arch === 'x64' || process.arch === 'amd64' ? 'x64' : 'a
 const BIN_DIR = join(ROOT_DIR, 'engine', `node-${PLATFORM_DIR}-${ARCH_DIR}`, 'bin');
 const PORT = 3000;
 let WORK_DIR = ROOT_DIR; // Default working directory
+
+// ─── Cyber/security tool limits ─────────────────────────────
+const MAX_IOC_SCAN_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB per file — skip large binaries
+const MAX_IOC_SCAN_DEPTH = 4;                     // directory recursion depth for grep_iocs
+const MAX_IOCS_PER_TYPE = 100;                    // cap results per IoC category
+const MAX_BINARY_STRINGS = 500;                   // cap extracted strings for display
+const MAX_LOG_OUTPUT_CHARS = 20000;               // cap log output to avoid huge responses
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -455,14 +462,14 @@ function executeTool(name, args) {
                 };
                 const found = {};
                 function walkIoc(dir, depth) {
-                    if (depth > 4) return;
+                    if (depth > MAX_IOC_SCAN_DEPTH) return;
                     try {
                         for (const entry of readdirSync(dir)) {
                             const fp = join(dir, entry);
                             try {
                                 const st = statSync(fp);
                                 if (st.isDirectory()) { walkIoc(fp, depth + 1); continue; }
-                                if (st.size > 5 * 1024 * 1024) continue;
+                                if (st.size > MAX_IOC_SCAN_SIZE_BYTES) continue;
                                 const content = readFileSync(fp, 'utf-8');
                                 for (const [type, regex] of Object.entries(IOC_PATTERNS)) {
                                     if (pattern !== 'all' && pattern !== type) continue;
@@ -478,7 +485,7 @@ function executeTool(name, args) {
                 }
                 walkIoc(searchPath, 0);
                 const results = {};
-                for (const [type, set] of Object.entries(found)) results[type] = [...set].slice(0, 100);
+                for (const [type, set] of Object.entries(found)) results[type] = [...set].slice(0, MAX_IOCS_PER_TYPE);
                 return { success: true, path: args.path, iocs: results };
             }
             case 'read_binary_strings': {
@@ -494,7 +501,7 @@ function executeTool(name, args) {
                     else { if (cur.length >= minLen) strings.push(cur); cur = ''; }
                 }
                 if (cur.length >= minLen) strings.push(cur);
-                return { success: true, path: args.path, count: strings.length, strings: strings.slice(0, 500) };
+                return { success: true, path: args.path, count: strings.length, strings: strings.slice(0, MAX_BINARY_STRINGS) };
             }
             case 'parse_log': {
                 const fullPath = resolvePath(args.path);
@@ -502,8 +509,8 @@ function executeTool(name, args) {
                 const n = args.lines || 50;
                 if (args.path.endsWith('.evtx') && IS_WIN) {
                     try {
-                        const out = execSync(`wevtutil qe "${fullPath}" /count:${n} /rd:true /f:text`, { encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] });
-                        return { success: true, format: 'evtx', content: out.slice(0, 20000) };
+                        const out = execFileSync('wevtutil', ['qe', fullPath, `/count:${n}`, '/rd:true', '/f:text'], { encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] });
+                        return { success: true, format: 'evtx', content: out.slice(0, MAX_LOG_OUTPUT_CHARS) };
                     } catch (e) { return { success: false, error: e.message }; }
                 }
                 const content = readFileSync(fullPath, 'utf-8');
